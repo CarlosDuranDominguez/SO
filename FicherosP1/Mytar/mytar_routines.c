@@ -174,5 +174,14 @@ int
 extractTar(char tarName[])
 {
 	// Complete the function
+	int nFiles;
+	FILE* tarfile = fopen(tarName, 'r'); //abro el tarfile de la ruta
+	stHeaderEntry *a = readHeader(tarfile, nFiles); //leo el header y relleno el array 'a'
+	for(int i = 0; i < nFiles; i++){
+		//aquí habría que leer el array 'a'
+	}
+	return EXIT_SUCCESS;
+    }
+    //Probablemente falta algo más porque habrá que usar la 'a' para algo, pero creo que no va por mal camino
 	return EXIT_FAILURE;
 }
