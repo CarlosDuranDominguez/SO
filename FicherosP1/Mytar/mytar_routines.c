@@ -19,7 +19,8 @@ int copynFile(FILE * origin, FILE * destination, int nBytes)
 	// Complete the function
 	char c;
 	int i = 0;
-	while(i<nBytes && (c = getc(origin)) != EOF){
+	while(i<nBytes && !feof(origin)){
+		fread(&c, 1, 1, origin);
 		if(fwrite(&c,1,1,destination)!=1){
 		return -1;
 		}
@@ -27,8 +28,9 @@ int copynFile(FILE * origin, FILE * destination, int nBytes)
 	}
 	if(c!=EOF)
 		return i;
-	else
+	else{
 		return -1;
+	}
 }
 
 /** Loads a string from a file.
@@ -46,19 +48,20 @@ char* loadstr(FILE * file)
 {
 	char c;
 	int numBytes = 0;
-
 	while( (c = getc(file))!='\0'&&c!=EOF){
-			numBytes ++;
+		numBytes ++;
 	}
+	numBytes++;
 	if(numBytes == 0||c == EOF){
 		return NULL;
 	}else{
 		char* output;
 		if((output = malloc(numBytes))==NULL)
 			return NULL;
-		if(fseek(file,-numBytes,SEEK_CUR)==-1||fread(output, 1, numBytes, file)!=numBytes)
+		if(fseek(file,-numBytes,SEEK_CUR)==-1||fread(output, 1, numBytes, file)!=numBytes) {
+			free(output);
 			return NULL;
-
+		}
 		return output;
 	}
 
@@ -76,30 +79,31 @@ char* loadstr(FILE * file)
 stHeaderEntry* readHeader(FILE * tarFile, int *nFiles)
 {
 	// Leemos el numero de archivos
-	if (fread(nFiles,4,1,tarFile) == 1){
+	if (fread(nFiles,sizeof(int),1,tarFile) == 1){
 		// Reservamos memoria para las cabeceras
-		stHeaderEntry *a = (stHeaderEntry*)malloc((sizeof(char*)+sizeof(unsigned int))**nFiles);
-
-		for(int i = 0; i<*nFiles; i++){
-			
-			char* cadena = loadstr(tarFile);		
-
-			if(cadena != NULL)
-			{
+		stHeaderEntry *a = (stHeaderEntry*)malloc((sizeof(stHeaderEntry))*(*nFiles));
+		char** cadenas = (char**)malloc(sizeof(char*)*(*nFiles));
+		for(int i = 0; i<*nFiles; i++){ 
+			cadenas[i] = loadstr(tarFile);		
+			if(cadenas[i] != NULL)
+			{	
 				unsigned int n;
 				if(fread(&n, sizeof(unsigned int), 1, tarFile)==1)
-				{
-					a[i] = (stHeaderEntry){cadena, n};
+				{					
+					a[i] = (stHeaderEntry){cadenas[i], n};
 				}
 				else {
+					free(cadenas);
 					free(a);
 					return NULL;
 				}
 			} else {
+				free(cadenas);
 				free(a);
 				return NULL;
 			}
 		}
+		free(cadenas);
 		return a;
 	}
 	return NULL;
@@ -129,56 +133,68 @@ stHeaderEntry* readHeader(FILE * tarFile, int *nFiles)
 int createTar(int nFiles, char *fileNames[], char tarName[])
 {
 	// Abrimos el archivo tar.
-	FILE* tarFile = fopen(tarName, "w");
+	FILE* tarFile = fopen(tarName, "wb");
 	if(tarFile==NULL)
 		return EXIT_FAILURE;
 	// Usamos una variable auxilar para abrir los archivos.
 	FILE* file;
 	//Calculamos el tamanyo del header.
-	int spaceHeader=4;
+	int spaceHeader=sizeof(int);
 	for(int i = 0; i< nFiles; i++){
 		int j = 0;
 		while(*(fileNames[i]+j)!='\0'){
 			spaceHeader++;
+			j++;
 		}
-		spaceHeader+=1+sizeof(unsigned int);
+		spaceHeader+=sizeof(char)+sizeof(unsigned int);
 	}
-	//Saltamos ese tamanyo.
-	fseek(tarFile,spaceHeader,SEEK_CUR);
-	//Reservamos memoria para los headers
-	stHeaderEntry* headers = (stHeaderEntry*)malloc((sizeof(char*)+sizeof(unsigned int))*nFiles);
 	//variable auxiliar para guardar los caracteres leidos
-	char aux;
+	char aux = nFiles;
+	fwrite(&aux, sizeof(int), 1, tarFile);
+	aux = 0;
+	fwrite(&aux,1,spaceHeader-sizeof(int),tarFile);
+	//Saltamos ese tamanyo.
+	fseek(tarFile,(long)spaceHeader,SEEK_SET);
+	//Reservamos memoria para los headers
+	stHeaderEntry* headers = (stHeaderEntry*)malloc((sizeof(stHeaderEntry))*nFiles);
+
 	//variable que calcula el tamanyo del archivo
 	int size;
 	//Recorremos todos los archivos a comprimir
 	for(int i = 0; i<nFiles; i++){
+		
 		//abrimos
-		file = fopen(fileNames[i],"r");
+		file = fopen(fileNames[i],"rb");
 		//reseteamos el tamanyo
 		size = 0;
 		//leemos hasta que llegamos el fin del archivo
 		do{
-			//Si hay una mala lectura o escritura salimos de la subrutina con un error
-			if(fread(&aux,1,1,file)!=1 || fwrite(&aux,1,1,tarFile)!=1){
-				free(headers);
-				return EXIT_FAILURE;
-			}
-			//Calculamos el tamanyo
-			size++;
-		}while(aux!=EOF);
+			
+			if(fread(&aux,1,1,file) != 1 || fwrite(&aux,1,1,tarFile) != 1) {
+				
+
+			} else {
+				//Calculamos el tamanyo
+				size++;	
+			}	
+		}while(!feof(file));
+			
+		
 		// determinamos la cabecera en memoria
-		headers[i].name = fileNames[0];
-		headers[i].size = size;
+		headers[i].name = fileNames[i];
+		headers[i].size = (unsigned int)size;
 		//Si cierra con un error devolvemos error
 		if(fclose(file)!=0) {
+			fclose(tarFile);
 			free(headers);
 			return EXIT_FAILURE;
 		}
+		
 	}
 	// Nos desplazamos el inicio del archivo y despues escribimos el numero de archivos, 
 	// si ocurre un error, terminamos la ejecucion
-	if(fseek(tarFile,0,SEEK_SET)!=0||fwrite(&nFiles,4,1,tarFile)!=1){
+	if(fseek(tarFile,0,SEEK_SET)!=0 || fwrite(&nFiles,sizeof(int),1,tarFile)!=1){
+		fclose(tarFile);
 		free(headers);
 		return EXIT_FAILURE;
 	}
@@ -191,8 +207,10 @@ int createTar(int nFiles, char *fileNames[], char tarName[])
 			fwrite(headers[i].name+j,1,1,tarFile);
 			j++;
 		}while(headers[i].name[j]!='\0');
+		fwrite(headers[i].name+j,1,1,tarFile);
 		//Escribimos el tamanyo
 		if(fwrite(&headers[i].size,sizeof(unsigned int),1,tarFile)!=1) {
+			fclose(tarFile);
 			free(headers);
 			return EXIT_FAILURE;
 		}
@@ -202,7 +220,6 @@ int createTar(int nFiles, char *fileNames[], char tarName[])
 	//Cerramos el archivo y en caso lo reflejamos en el return.
 	if(fclose(tarFile)!=0)
 			return EXIT_FAILURE;
-
 	return EXIT_SUCCESS;
 }
 
@@ -224,25 +241,26 @@ int
 extractTar(char tarName[])
 {
 	FILE* tarfile;
+
 	if((tarfile=fopen(tarName, "r"))!=NULL) {
 		int nFiles;
-		// Leemos el tamanyo del archivo y si ocurre un error terminamos la ejecucion.
-		if(fread(&nFiles, 4, 1, tarfile)!=1){
-			return EXIT_FAILURE;
-		}
+
 		//Leemos la cabecera y en caso de error terminamos la ejecucion
 		stHeaderEntry *a = readHeader(tarfile, &nFiles); 
+		
+		
 		if(a == NULL)
 			return EXIT_FAILURE;
 		// Leemos cada archivo senyalado por la cabecera y lo copiamos el fichero con nombre tarName.
 		// SI ocurre un error terminamos el programa
 		for(int i = 0; i < nFiles; i++){
 			FILE* destinationFile;
-			if((destinationFile= fopen(a[i].name, "w"))==NULL || copynFile(tarfile, destinationFile, a[i].size)==-1 || fclose(destinationFile)==EOF){
-				return EXIT_FAILURE;
+			if((destinationFile= fopen(a[i].name, "wb"))==NULL || copynFile(tarfile, destinationFile, a[i].size)==-1 || fclose(destinationFile)==EOF){
 				free(a);
+				return EXIT_FAILURE;
 			}
 		}
+								
 		free(a);
 		//Cerramos el archivo y en caso lo reflejamos en el return.
 		if(fclose(tarfile)==EOF)
