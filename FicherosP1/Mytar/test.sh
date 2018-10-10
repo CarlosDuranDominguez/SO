@@ -11,7 +11,7 @@ end () {
 	exit $ERROR
 }
 
-
+# Comprobamos que exista el ejecutable
 [ -x mytar ] || print_error "Non existing executable"
 [ $ERROR -eq 1 ] || end
 [ -d tmp ] && rm -r tmp
