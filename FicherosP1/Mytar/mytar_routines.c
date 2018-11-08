@@ -269,3 +269,119 @@ extractTar(char tarName[])
     }
 		return EXIT_FAILURE;
 }
+
+/** Extract info files stored in a tarball archive
+ *
+ * tarName: tarball's pathname
+ *
+ * On success, it returns EXIT_SUCCESS; upon error it returns EXIT_FAILURE. 
+ * (macros defined in stdlib.h).
+ *
+ * HINTS: First load the tarball's header into memory.
+ * After reading the header, the file position indicator will be located at the 
+ * tarball's data section. By using information from the 
+ * header --number of files and (file name, file size) pairs--, extract files 
+ * stored in the data section of the tarball.
+ *
+ */
+int
+infoTar(char tarName[])
+{
+	FILE * file;
+	file = fopen(tarName, "rb");
+	int n;
+	stHeaderEntry *headers = readHeader(file, &n);
+	if (headers == NULL)
+		return EXIT_FAILURE;
+	for (int i = 0; i< n; i++){
+		fprintf(stdout,"[%d] : file %s, size %d Bytes\n",i,headers[i].name,headers[i].size);
+		free(headers[i].name);
+	}
+	fclose(file);
+	free(headers);
+	return EXIT_SUCCESS;
+}
+
+/** removeFileTar a tarball archive 
+ *
+ * nfiles: number of mtar files
+ * filenames: array with the path names of the mtar files
+ * tarname: name of the tarball archive
+ * 
+ * On success, it returns EXIT_SUCCESS; upon error it returns EXIT_FAILURE. 
+ * (macros defined in stdlib.h).
+ *
+ */
+int
+removeFileTar(int nFiles, char *fileNames[], char tarName[])
+{
+	
+	FILE* tarFileOrigin;
+	FILE* tarFileDestiny;
+	tarFileOrigin = fopen(tarName, "rb");
+	tarFileDestiny = fopen(tarName, "rb+");
+	int n , nErased = 0;
+	unsigned int newN;
+	
+	stHeaderEntry *headers = readHeader(tarFileOrigin, &n);
+
+	fseek(tarFileOrigin,sizeof(unsigned int), SEEK_SET);
+	for(int i = 0; i< n; i++){
+		for(int j = 0; j<nFiles; j++){
+			if(strcmp(fileNames[j], headers[i].name)==0){
+				nErased++;
+			}
+		}
+		fseek(tarFileOrigin,strlen(headers[i].name)+1+sizeof(unsigned int), SEEK_CUR);
+	}
+	
+	newN = n -nErased;
+	stHeaderEntry* newHeaders = (stHeaderEntry*)malloc((sizeof(stHeaderEntry))*newN);
+	int k =0;
+	fwrite(&newN, sizeof(unsigned int), 1, tarFileDestiny);
+	for(int i = 0; i< n; i++){
+		int j = 0;
+		while(j<nFiles && strcmp(fileNames[j], headers[i].name)!=0){
+			j++;
+		}
+		if(j==nFiles){
+			newHeaders[k].name = headers[i].name;
+			newHeaders[k].size = headers[i].size;
+			int h = 0;
+			do{
+				fwrite(newHeaders[k].name+h,1,1,tarFileDestiny);
+				h++;
+			}while(newHeaders[k].name[h]!='\0');
+			fwrite(newHeaders[k].name+h,1,1,tarFileDestiny);
+			fwrite(&newHeaders[k].size,sizeof(unsigned int),1,tarFileDestiny);
+			k++;
+		}
+
+	}
+	//Escribimos el cuerpo.
+	
+	k = 0;
+	for(int i = 0; i<n; i++){
+		if(strcmp(newHeaders[k].name, headers[i].name)!=0){
+			fseek(tarFileOrigin,(int)headers[i].size, SEEK_CUR);
+		} else {
+			char* s;
+			s = (char*)malloc(headers[i].size);
+				fread(s,1,headers[i].size,tarFileOrigin);
+				fwrite(s,1,headers[i].size, tarFileDestiny);
+
+			k++;
+		}	
+	}
+	
+	for(int i = 0; i< n; i++)
+		free(headers[i].name);
+	free(headers);
+	for(int i = 0; i< newN; i++)
+		free(newHeaders[i].name);
+	free(newHeaders);
+	fclose(tarFileOrigin);
+	fclose(tarFileDestiny);
+
+	return EXIT_SUCCESS;
+}
