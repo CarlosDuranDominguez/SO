@@ -21,7 +21,7 @@ cp ./src/$FILE2 $MPOINT/
 diff ./temp/$FILE1 $MPOINT/$FILE1
 diff ./temp/$FILE2 $MPOINT/$FILE2
 
-truncate -o --size=-1 ./src/$FILE1
+truncate -o --size=-1 ./temp/$FILE1
 truncate -o --size=-1 $MPOINT/$FILE1
 
 ./my-fsck virtual-disk
@@ -34,7 +34,7 @@ cp ./src/$FILE3 ./temp/
 
 diff ./temp/$FILE3 $MPOINT/$FILE
 
-truncate -o --size=+2 ./src/$FILE2
+truncate -o --size=+2 ./temp/$FILE2
 truncate -o --size=+2 $MPOINT/$FILE2
 
 ./my-fsck virtual-disk

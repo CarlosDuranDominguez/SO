@@ -370,12 +370,10 @@ int readBlock(MyFileSystem *myFileSystem, DISK_LBA blockNumber, void *buffer)
         perror("Failed lseek in readBlock()");
         return -1;
     }
-    int auxRet;
-    if( (auxRet = read(myFileSystem->fdVirtualDisk, buffer, BLOCK_SIZE_BYTES)) != BLOCK_SIZE_BYTES ) {
+    if( read(myFileSystem->fdVirtualDisk, buffer, BLOCK_SIZE_BYTES) != BLOCK_SIZE_BYTES ) {
         perror("Failed read in readBlock()");
-        return auxRet;
     }
-    return BLOCK_SIZE_BYTES;
+    return 0;
 }
 
 int writeBlock(MyFileSystem *myFileSystem, DISK_LBA blockNumber, void *buffer)
