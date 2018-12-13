@@ -1,10 +1,10 @@
 ======================================
 c2	0	1	ready
 c2	1	4	WE
-c1	0	2	ready
-c1	2	5	WE
 c0	0	0	ready
 c0	0	3	WE
+c1	0	2	ready
+c1	2	5	WE
 m5	2	4	ready
 m5	4	7	WE
 c6	2	3	ready

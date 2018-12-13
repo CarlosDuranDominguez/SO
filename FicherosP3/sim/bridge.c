@@ -31,11 +31,14 @@ void bridge_in(tcar *dcar) {
  */
 	pthread_mutex_lock(&dbridge.mtx);
 
-	while(dbridge.cur_direction != EMPTY && (dbridge.cur_direction != dcar->my_direction && dbridge.cars_on_bridge != 0)) { //la última condicion no se si es correcta
-	 dbridge.cars_waiting[dcar->my_direction]++;
-	 pthread_cond_wait(dbridge.VCs+dcar->my_direction, &dbridge.mtx);
-	 dbridge.cars_waiting[dcar->my_direction]--;
-	 }
+	while(dbridge.cur_direction != EMPTY && 
+		(dbridge.cur_direction != dcar->my_direction && dbridge.cars_on_bridge != 0)
+		) 
+	{ 
+		dbridge.cars_waiting[dcar->my_direction]++;
+		pthread_cond_wait(dbridge.VCs+dcar->my_direction, &dbridge.mtx);
+		dbridge.cars_waiting[dcar->my_direction]--;
+	}
 
 	dbridge.cur_direction = dcar->my_direction;
 	dbridge.cars_on_bridge++;
